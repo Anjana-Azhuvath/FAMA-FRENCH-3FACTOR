@@ -1,0 +1,160 @@
+---
+title: "FAMA FRENCH"
+author: "Anjana Raj A"
+date: "2024-05-02"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Question 3
+
+Load again AAPL, ABBV, DAL, GOOGL, GM, JPM and VZ over the past three years (April,2021 - April, 2024). We focus on the adjusted closing price. Calculate the returns of the adjusted closing price. Load the Fama-French Daily factors F-F Research Data Factors daily.csv into R. x = date, mkr.rf=daily market portfolio minus risk free asset, smb = small minus big factors, hml = high minus low factors and rf = risk free asset. In this question we focus on the returns from 28th April, 2021 - 29th February, 2024 (as the Fama-French factors only go up to the end of February). Therefore filter out the returns after this date.
+
+```{r, warning=FALSE}
+setwd("/Users/anjanaraja/Downloads/spr_24/stats_final/final/Data")
+aapl=read.csv("AAPL.csv")
+abbv=read.csv("ABBV.csv")
+dal=read.csv("DAL.csv")
+gm=read.csv("GM.csv")
+ggl=read.csv("GOOGL.csv")
+jpm=read.csv("JPM.csv")
+vz=read.csv("VZ.csv")
+ff=read.csv("/Users/anjanaraja/Downloads/spr_24/stats_final/final/Data/F-F_Research_Data_Factors_daily.csv")
+```
+
+```{r}
+#Subsetting Fama French Data from 28 April to 29 February
+library("anytime")
+ff$DATE=anydate(ff$DATE)
+ff1=ff[c(24976:25690),]
+```
+
+```{r}
+#Extracting adjusted closing prices
+closing=cbind(aapl$Adj.Close, abbv$Adj.Close, dal$Adj.Close,
+              gm$Adj.Close, ggl$Adj.Close, jpm$Adj.Close,
+              vz$Adj.Close)
+colnames(closing)=c("APPL","ABBV","DAL",
+                    "GM","GGL","JPM","VZ")
+```
+
+```{r}
+#Calculating Returns
+ret=function(x){
+  ret=x[-1]/x[-754]-1
+return(ret)
+}
+
+returns=cbind(ret(closing[,1]),ret(closing[,2]),ret(closing[,3]),ret(closing[,4]),ret(closing[,5]),ret(closing[,6]),ret(closing[,7]))
+colnames(returns)=c("APPL","ABBV","DAL","GM","GGL","JPM","VZ")
+Date=aapl$Date[-2]
+returns=cbind(Date,returns)
+returns=as.data.frame(returns)
+
+returns$Date=as.Date(returns$Date)
+returns$APPL=as.numeric(returns$APPL)
+returns$ABBV=as.numeric(returns$ABBV)
+returns$DAL=as.numeric(returns$DAL)
+returns$GM=as.numeric(returns$GM)
+returns$GGL=as.numeric(returns$GGL)
+returns$JPM=as.numeric(returns$JPM)
+returns$VZ=as.numeric(returns$VZ)
+#Subsetting Returns
+returns1=returns[c(1:715),]
+```
+
+```{r}
+#Merging Data Frames
+fama=cbind(returns1,ff1)
+fama$Mkt.RF=fama$Mkt.RF/100
+fama$RF=fama$RF/100
+head(fama)
+tail(fama)
+```
+
+#### (a) Using the adjusted daily returns for AAPL, ABBV, DAL, GOOGL, GM JPM and VZ fit the Fama-French factor model
+
+(R(j)t − μf,t) = αj + βj,1(Rmp,t − μf,t) + βj,2SMBt + βj,3HMLt + εj,t
+
+```{r}
+#Calculating Excess Returns
+Excess=cbind(
+aapl.ex=fama[,2]-fama[,13],
+abbv.ex=fama[,3]-fama[,13],
+dal.ex=fama[,4]-fama[,13],
+gm.ex=fama[,5]-fama[,13],
+ggl.ex=fama[,6]-fama[,13],
+jpm.ex=fama[,7]-fama[,13],
+vz.ex=fama[,8]-fama[,13])
+
+factor3=lm(Excess~fama$Mkt.RF+fama$SMB+fama$HML)
+summary(factor3)
+```
+
+```{r}
+#Extracting Residual
+resid.factor3=factor3$residuals
+#Calculate Correlations
+corr.factor3=round(cor(resid.factor3),3)
+corr.factor3
+```
+
+#### (b)Using the adjusted daily returns for AAPL, ABBV, DAL, GOOGL, GM, JPM and VZ fit the factor model (R(j)t − μf,t)= αj + βj,1(Rmp,t − μf,t) + εj,twhere j ∈{AAPL,ABBV,DAL,GOOGL,GM.JPM, V Z}. Extract the residuals and give the correlation matrix (rounded to three decimal places).
+
+```{r}
+#Fitting the reduced model
+capm=lm(Excess~fama$Mkt.RF)
+summary(capm)
+#Extracting Residuals
+resid.capm=capm$residuals
+#Correlation among residuals
+corr.capm=round(cor(resid.capm),3)
+corr.capm
+```
+
+#### (c)Compare the correlations of the residuals based on (a) and (b). What do you observe?
+
+```{r}
+corr.factor3
+```
+
+```{r}
+corr.capm
+```
+
+It is observed that the Fama-French tends to have substantially smaller cross correlations as compared to the CAPM. This suggest that the Fama-French Model improves on the CAPM.
+
+#### (d)Use the log-likelihood ratio test to test the hypothesis that H0 : βj,2 = 0, βj,3 = 0 for all j vs H1 : some of these coefficients are none-zero.What is the conclusion of the test? What do the test results suggest about the suitability of the Fama-French model over the CAPM?
+Ans: If Bj2 and 3 have to zero, it means that there are no size and value factors affecting the return. On the MKT, which is a capm.
+```{r}
+#The full model or 3 factor model is: factor3, the reduced model is capm
+#Extracting the residuals
+resid1=factor3$residuals
+resid2=capm$residuals
+#Calculating the variance matrix
+full.var=var(resid1)
+# full.var
+red.var=var(resid2)
+# red.var
+#Calculating the log likelihood
+full.llh=log(det(full.var))
+full.llh
+red.llh=log(det(red.var))
+red.llh
+#Generally fitting extract factors must improve the likelihood ratio.
+diffllh=red.llh-full.llh
+#LLRT: In the lecture video n-m/2-p is used, where m is the no. of assets and p is the no. additional of factors and n is
+m=7/2
+n=715
+p=2
+llrt=(n-m-p)*(diffllh)
+llrt
+#Chi-sq: with df=14 since it is the number of assets times the no. of factors
+qchisq(0.95,df=14)
+#P value of distribution
+1-pchisq(llrt,df=14)
+```
+The log likelihood ratio test helps to determine whether adding more factors yields better results. By taking the difference of the log likelihoods, I get a value of 0.7088.The llr ratio is about 502.903. The chi-square distribution at the 5% level yields a value of 23.68479. The estimated log likelihood ratio appears to be significantly larger than the p value of the chi square distribution. Therefore, I am really gaining by including the additional variables. The null hypothesis can be rejected at the 5% level.This is also evident from the estimated pvalue of zero
